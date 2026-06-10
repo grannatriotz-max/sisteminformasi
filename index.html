@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Jadwal Kapal Real-Time</title>
+    <style>
+        /* Gaya Visual Tema Modern Maritim */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background-color: #002060;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .live-clock {
+            font-size: 1.2rem;
+            background-color: #003399;
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        h2 {
+            color: #002060;
+            border-left: 5px solid #0055ff;
+            padding-left: 10px;
+            margin-top: 30px;
+        }
+
+        /* Desain Tabel */
+        .table-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f0f4f8;
+            color: #002060;
+            padding: 12px;
+            font-weight: 600;
+            border-bottom: 2px solid #e1e8ed;
+        }
+
+        td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #e1e8ed;
+        }
+
+        tr:hover {
+            background-color: #f9fbfe;
+        }
+
+        /* Badge Status Real-Time */
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .scheduled { background-color: #e2e8f0; color: #4a5568; }
+        .boarding { background-color: #feebc8; color: #c05621; animation: blink 1s infinite; }
+        .departed { background-color: #fed7d7; color: #9b2c2c; }
+        .arrived { background-color: #c6f6d5; color: #22543d; }
+
+        @keyframes blink {
+            50% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🚢 SISTEM JADWAL KAPAL REAL-TIME</h1>
+        <p>Papan Informasi Digital Keberangkatan & Kedatangan Kapal</p>
+        <div class="live-clock" id="liveClock">Memuat Waktu...</div>
+    </header>
+
+    <h2>🛫 JADWAL KEBERANGKATAN (DEPARTURES)</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nama Kapal</th>
+                    <th>Rute Tujuan</th>
+                    <th>Jadwal Berangkat (ETD)</th>
+                    <th>Sisa Waktu</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="departureTable">
+                </tbody>
+        </table>
+    </div>
+
+    <h2>🛬 JADWAL KEDATANGAN (ARRIVALS)</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nama Kapal</th>
+                    <th>Asal Kapal</th>
+                    <th>Jadwal Tiba (ETA)</th>
+                    <th>Sisa Waktu</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="arrivalTable">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 1. DATA SIMULASI JADWAL KAPAL
+    // Anda bisa mengubah jam di bawah ini untuk menguji perubahan status otomatisnya
+    const departuresData = [
+        { name: "KM Dharma Kencana VII", destination: "Makassar", time: "08:00" },
+        { name: "KM Express Bahari 3B", destination: "Pulau Bawean", time: "14:30" },
+        { name: "KM Nggapulu", destination: "Jakarta (Tanjung Priok)", time: "18:15" },
+        { name: "KM Nusantara Cargo 1", destination: "Banjarmasin", time: "22:00" }
+    ];
+
+    const arrivalsData = [
+        { name: "KM Labobar", origin: "Balikpapan", time: "06:15" },
+        { name: "KM Kirana VII", origin: "Lombok", time: "13:00" },
+        { name: "KM Gunung Dempo", origin: "Sorong", time: "16:45" },
+        { name: "KM Tuna Trans", origin: "Madura", time: "23:30" }
+    ];
+
+    // 2. FUNGSI UTAMA PERUBAHAN WAKTU & STATUS (REAL-TIME)
+    function updateRealTimeSystem() {
+        const now = new Date();
+        
+        // Tampilkan jam digital di atas layar
+        const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('liveClock').innerText = `🕒 WAKTU SEKARANG: ${timeString} WIB`;
+
+        // Konversi waktu sekarang ke total menit hari ini
+        const currentMinutes = (now.getHours() * 60) + now.getMinutes();
+
+        // PEMPROSESAN TABEL KEBERANGKATAN
+        let depHtml = "";
+        departuresData.forEach(ship => {
+            const [h, m] = ship.time.split(":").map(Number);
+            const targetMinutes = (h * 60) + m;
+            const diff = targetMinutes - currentMinutes; // Selisih menit
+
+            let statusClass = "scheduled";
+            let statusText = "Terjadwal";
+            let countdownText = `${diff} Menit lagi`;
+
+            if (diff <= 0) {
+                statusClass = "departed";
+                statusText = "Selesai Berangkat";
+                countdownText = "-";
+            } else if (diff <= 30) {
+                statusClass = "boarding";
+                statusText = "Boarding / Naik Kapal";
+            }
+
+            depHtml += `<tr>
+                <td><strong>${ship.name}</strong></td>
+                <td>${ship.destination}</td>
+                <td>⏱️ ${ship.time} WIB</td>
+                <td>${countdownText}</td>
+                <td><span class="status ${statusClass}">${statusText}</span></td>
+            </tr>`;
+        });
+        document.getElementById('departureTable').innerHTML = depHtml;
+
+        // PEMPROSESAN TABEL KEDATANGAN
+        let arrHtml = "";
+        arrivalsData.forEach(ship => {
+            const [h, m] = ship.time.split(":").map(Number);
+            const targetMinutes = (h * 60) + m;
+            const diff = targetMinutes - currentMinutes;
+
+            let statusClass = "scheduled";
+            let statusText = "Di Perjalanan";
+            let countdownText = `${diff} Menit lagi`;
+
+            if (diff <= -30) {
+                statusClass = "arrived";
+                statusText = "Sudah Bersandar";
+                countdownText = "-";
+            } else if (diff <= 0 && diff > -30) {
+                statusClass = "boarding";
+                statusText = "Proses Sandar";
+                countdownText = "Tiba Sekarang";
+            }
+
+            arrHtml += `<tr>
+                <td><strong>${ship.name}</strong></td>
+                <td>${ship.origin}</td>
+                <td>⏱️ ${ship.time} WIB</td>
+                <td>${countdownText}</td>
+                <td><span class="status ${statusClass}">${statusText}</span></td>
+            </tr>`;
+        });
+        document.getElementById('arrivalTable').innerHTML = arrHtml;
+    }
+
+    // Jalankan fungsi update ini setiap 1 detik (1000ms)
+    setInterval(updateRealTimeSystem, 1000);
+    
+    // Jalankan pertama kali saat halaman dibuka
+    updateRealTimeSystem();
+</script>
+
+</body>
+</html>
